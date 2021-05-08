@@ -5,6 +5,8 @@
 #include <sstream> //std::stringstream
 #include <iostream>
 
+#include <chrono>
+
 std::string readFile(std::string file_name) {
     std::ifstream inFile;
     inFile.open(file_name); //open the input file
@@ -16,11 +18,17 @@ std::string readFile(std::string file_name) {
 }
 
 int main() {
-	//bn::BinaryNumber* b = sh::createBinaryMessage("abc");
-	//bn::promptData(b);
-	//bn::destroyBinaryNumber(b);
-
-    std::string digest = sh::sha256("");
-    std::cout << digest;
+    std::string str = "abc";
+    std::cout << "           SHA256 coded by https://github.com/glucard .";
+    while (str != "") {
+        std::cout << "\n\n////////////////////////////////////////////////////////////////////////////////\n\nInput: ";
+        str = "";
+        getline(std::cin,str);
+        auto start = std::chrono::high_resolution_clock::now();
+        std::string digest = sh::sha256(str.c_str());
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::cout << "\nOutput(digest): " << digest;
+        std::cout << " (" << (std::chrono::duration_cast<std::chrono::microseconds>(finish - start).count()) * pow(10,-6) << "s)\n";
+    }
 	return 0;
 }

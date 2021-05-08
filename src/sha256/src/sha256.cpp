@@ -188,7 +188,6 @@ namespace sh {
 		// append the lenght.
 		bn::append64bitNumber(binary_message, start_binary_message_lenght);
 
-
 		return binary_message;
 	}
 
@@ -305,7 +304,6 @@ namespace sh {
 
 		for (int i = 0; i < 8; i++) {
 			str << binaryToHex32bits(hi[i]);
-			print32bits(hi[i]);
 			free(hi[i]);
 			free(s_hi[i]);
 		}
