@@ -1,5 +1,34 @@
 #include "sha256.h"
 
+
+
+int binaryToInt4bits(int* n) {
+	int sum = 0;
+	for (int i = 0; i < 4; i++) {
+		sum += n[i] * pow(2, 3 - i);
+	}
+	return sum;
+}
+
+std::string binaryToHex32bits(int* n) {
+	std::stringstream hex;
+	for (int i = 0; i < 32; i += 4) {
+		hex << sh::hex_base[binaryToInt4bits(&n[i])];
+	}
+	return hex.str();
+}
+
+int* intToBinary32bits(unsigned int n) {
+	int* b = (int*)malloc(32 * sizeof(int));
+
+	for (int i = 31; i >= 0; i--) {
+		b[i] = n % 2;
+		n /= 2;
+	}
+
+	return b;
+}
+
 void sumBinaryMod32bits(int* a, int* b) {
 	int sum = 0;
 	for (int i = 31; i >= 0; i--) {
@@ -89,6 +118,55 @@ int* o1(int* a) {
 	return aux0;
 }
 
+int* e1(int* a) {
+	int* aux0, * aux1;
+
+	aux0 = rotr32bits(a, 6);
+
+	aux1 = rotr32bits(a, 11);
+	xor32bits(aux0, aux1);
+	free(aux1);
+
+	aux1 = rotr32bits(a, 25);
+	xor32bits(aux0, aux1);
+	free(aux1);
+
+	return aux0;
+}
+
+int* e0(int* a) {
+	int* aux0, * aux1;
+
+	aux0 = rotr32bits(a, 22);
+
+	aux1 = rotr32bits(a, 13);
+	xor32bits(aux0, aux1);
+	free(aux1);
+
+	aux1 = rotr32bits(a, 2);
+	xor32bits(aux0, aux1);
+	free(aux1);
+
+	return aux0;
+}
+
+int* maj32bits(int* a, int* b, int* c) {
+	int* y = (int*)malloc(32 * sizeof(int));
+	int count_1;
+	for (int i = 0; i < 32; i++) {
+		count_1 = (a[i] == 1 ? 1 : 0) + (b[i] == 1 ? 1 : 0) + (c[i] == 1 ? 1 : 0);
+		y[i] = (count_1 > 1 ? 1 : 0);
+	}
+	return y;
+}
+
+int* ch32bits(int* a, int* b, int* c) {
+	int* y = (int*)malloc(32 * sizeof(int));
+	for (int i = 0; i < 32; i++) {
+		y[i] = (a[i] ? b[i] : c[i]);
+	}
+	return y;
+}
 namespace sh {
 
 	bn::BinaryNumber* createBinaryMessage(std::string message) {
@@ -114,62 +192,136 @@ namespace sh {
 		return binary_message;
 	}
 
-	void sha256(std::string message) {
+	std::string sha256(std::string message) {
 		bn::BinaryNumber* message_blocks = createBinaryMessage(message);
 
 		int n_blocks = message_blocks->lenght / 512;
 
-		int*** w_binary_blocks = (int***)malloc(n_blocks * sizeof(int**));
-		int* aux_binary;
 
+		// buffers.
+		int** k = (int**)malloc(64 * sizeof(int*));
+
+		int** s_hi = (int**)malloc(8 * sizeof(int*));
+		int** hi = (int**)malloc(8 * sizeof(int*));
+
+		// converting buffers.
+		for (int i = 0; i < 64; i++) {
+			k[i] = intToBinary32bits(K[i]);
+		}
+
+		for (int i = 0; i < 8; i++) {
+			s_hi[i] = (int*)malloc(32 * sizeof(int));
+			hi[i] = intToBinary32bits(HI[i]);
+		}
+
+		// initializing w.
+		int** w = (int**)malloc(64 * sizeof(int*));
+		for (int i_w = 0; i_w < 64; i_w++) {
+			w[i_w] = (int*)malloc(32 * sizeof(int));
+		}
+		// initializing blocks.
+		int* aux_binary, * t1, * t2;
 
 		for (int i_block = 0; i_block < n_blocks; i_block++) {
-			w_binary_blocks[i_block] = (int**)malloc(64 * sizeof(int*));
+			
+			// starting starters. 
+			for (int i = 0; i < 8; i++) {
+				copyTo32bits(s_hi[i], hi[i]);
+			}
+			/////////////
 			
 
 			// copying the 16 first w.
 			for (int i_w = 0; i_w < 16; i_w++) {
-				w_binary_blocks[i_block][i_w] = (int*)malloc(32 * sizeof(int));
 				for (int i_binary = 0; i_binary < 32; i_binary++) {
-					w_binary_blocks[i_block][i_w][i_binary] = message_blocks->data[i_w * 32 + i_binary];
+					w[i_w][i_binary] = message_blocks->data[i_block * 512 + i_w * 32 + i_binary];
 				}
-				print32bits(w_binary_blocks[i_block][i_w]);
 			}
 			
 			// generating the 48 others w.
 			for (int i_w = 16; i_w < 64; i_w++) {
-				w_binary_blocks[i_block][i_w] = (int*)malloc(32 * sizeof(int));
 
-				aux_binary = o1(w_binary_blocks[i_block][i_w - 2]);
-				copyTo32bits(w_binary_blocks[i_block][i_w], aux_binary);
+				aux_binary = o1(w[i_w - 2]);
+				copyTo32bits(w[i_w], aux_binary);
 				free(aux_binary);
 
-				sumBinaryMod32bits(w_binary_blocks[i_block][i_w], w_binary_blocks[i_block][i_w - 7]);
+				sumBinaryMod32bits(w[i_w], w[i_w - 7]);
 
-				aux_binary = o0(w_binary_blocks[i_block][i_w - 15]);
-				sumBinaryMod32bits(w_binary_blocks[i_block][i_w], aux_binary);
+				aux_binary = o0(w[i_w - 15]);
+				sumBinaryMod32bits(w[i_w], aux_binary);
 				free(aux_binary);
 
-				sumBinaryMod32bits(w_binary_blocks[i_block][i_w], w_binary_blocks[i_block][i_w - 16]);
+				sumBinaryMod32bits(w[i_w], w[i_w - 16]);
 				
-				print32bits(w_binary_blocks[i_block][i_w]);
+			}
+
+			// compression.
+			
+			for (int i = 0; i < 64; i++) {
+				///////// t1 ////////////
+				t1 = e1(hi[4]);
+
+				aux_binary = ch32bits(hi[4], hi[5], hi[6]);
+				sumBinaryMod32bits(t1, aux_binary);
+				free(aux_binary);
+
+				sumBinaryMod32bits(t1, hi[7]);
+
+				sumBinaryMod32bits(t1, k[i]);
+				sumBinaryMod32bits(t1, w[i]);
+				////////////////////////
+				///////// t2 ////////////
+				t2 = e0(hi[0]);
+
+				aux_binary = maj32bits(hi[0], hi[1], hi[2]);
+				sumBinaryMod32bits(t2, aux_binary);
+				free(aux_binary);
+
+				////////////////////////
+
+				// steer down hi.
+				free(hi[7]);
+				for (int i = 7; i > 0; i--) {
+					hi[i] = hi[i - 1];
+				}
+				hi[0] = t1;
+				sumBinaryMod32bits(hi[4], t1);
+				sumBinaryMod32bits(hi[0], t2);
+
+				free(t2);
+			}
+			for (int i = 0; i < 8; i++) {
+				sumBinaryMod32bits(hi[i], s_hi[i]);
 			}
 		}
+
+		
+		for (int i = 0; i < 64; i++) {
+			free(k[i]);
+		}
+		free(k);
+		
+		std::stringstream str;
+
+		for (int i = 0; i < 8; i++) {
+			str << binaryToHex32bits(hi[i]);
+			print32bits(hi[i]);
+			free(hi[i]);
+			free(s_hi[i]);
+		}
+		free(hi);
+		free(s_hi);
+
 
 		// freeing.
-		for (int i_block = 0; i_block < n_blocks; i_block++) {
-
-
-			// copying the 16 first w.
-			for (int i_w = 0; i_w < 16; i_w++) {
-				free(w_binary_blocks[i_block][i_w]);
-			}
-			free(w_binary_blocks[i_block]);
+		// copying the 16 first w.
+		for (int i_w = 0; i_w < 16; i_w++) {
+			free(w[i_w]);
 		}
-		free(w_binary_blocks);
-	
+		free(w);
 
 		// should be.
 		bn::destroyBinaryNumber(message_blocks);
+		return str.str();
 	}
 }
