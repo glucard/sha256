@@ -6,7 +6,8 @@
 namespace sh {
 
 	bn::BinaryNumber* createBinaryMessage(std::string message);
-
+	void sha256(std::string message);
+	
 }
 
 #endif // !_SHA256_H_
